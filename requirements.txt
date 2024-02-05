@@ -1,0 +1,16 @@
+translate-toolkit
+
+transformers
+datasets
+
+torch
+torchvision
+torchaudio
+
+sentencepiece
+
+sacrebleu
+accelerate
+
+sacremoses
+python-docx
