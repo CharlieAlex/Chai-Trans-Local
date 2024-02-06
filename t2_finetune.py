@@ -1,3 +1,4 @@
+from t0_config import Project_path, workdata_path
 import numpy as np
 import os
 from tqdm import tqdm
@@ -6,24 +7,26 @@ from torch.utils.data import DataLoader
 import torch
 from datasets import load_dataset, load_metric
 from transformers import (
-    Seq2SeqTrainingArguments, 
-    AutoTokenizer, AutoModelForSeq2SeqLM, 
+    Seq2SeqTrainingArguments,
+    AutoTokenizer, AutoModelForSeq2SeqLM,
     DataCollatorForSeq2Seq, AdamW,
     get_scheduler
 )
 from accelerate import Accelerator
 from huggingface_hub import Repository, get_full_repo_name
+import warnings
+warnings.filterwarnings("ignore")
 
-# Code
+# Key
 model_checkpoint = "charliealex123/marian-finetuned-kde4-zh-to-en"
-train_file = "131671-US-397_Glossary.json"
-train_range = range(0, 114)
-commit_text = "0205_glossary"
+directory = "TMX"
+train_file = "ZH-EN (Charlotte).json"
+train_range = range(1_200, 2_000)
+commit_text = "char_1200_2000"
 
 # Constants
-Chai_Trans = '/Users/alexlo/Desktop/Project/Chai_Trans/'
-workdata_path = Chai_Trans + 'workdata/'
-output_dir = Chai_Trans + "marian-finetuned-kde4-zh-to-en-local"
+output_dir = f"{Project_path}/marian-finetuned-kde4-zh-to-en-local"
+workdata_path = f"{workdata_path}/{directory}"
 model_name = "marian-finetuned-kde4-zh-to-en"
 repo_name = get_full_repo_name(model_name)
 
@@ -78,9 +81,11 @@ def postprocess(predictions, labels):
 
 # load data
 os.chdir(workdata_path)
-raw_datasets = load_dataset('json', data_files=train_file) 
-raw_datasets['train'] = raw_datasets['train'].select(train_range)
-split_datasets = raw_datasets["train"].train_test_split(train_size=0.9, seed=20)
+raw_datasets = load_dataset('json', data_files=train_file)
+split_datasets = (raw_datasets['train']
+    .select(train_range)
+    .train_test_split(train_size=0.9, seed=20)
+)
 split_datasets["validation"] = split_datasets.pop("test")
 
 # tokenize data
