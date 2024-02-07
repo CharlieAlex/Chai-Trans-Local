@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 import torch
 from datasets import load_dataset, load_metric
 from transformers import (
-    Seq2SeqTrainingArguments,
     AutoTokenizer, AutoModelForSeq2SeqLM,
     DataCollatorForSeq2Seq, AdamW,
     get_scheduler
@@ -18,30 +17,32 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # Key
-model_checkpoint = "charliealex123/marian-finetuned-kde4-zh-to-en"
+from_lang = 'zh'
+to_lang = 'en'
 directory = "TMX"
 train_file = "ZH-EN (Charlotte).json"
-train_range = range(1_200, 2_000)
-commit_text = "char_1200_2000"
+train_range = range(5_000, 6_000)
+commit_text = "char_5000_6000"
 
 # Constants
+model_checkpoint = "charliealex123/marian-finetuned-kde4-zh-to-en"
 output_dir = f"{Project_path}/marian-finetuned-kde4-zh-to-en-local"
-workdata_path = f"{workdata_path}/{directory}"
 model_name = "marian-finetuned-kde4-zh-to-en"
+workdata_path = f"{workdata_path}/{directory}"
 repo_name = get_full_repo_name(model_name)
+repo = Repository(output_dir, clone_from=repo_name)
+max_input_length = 128
+max_target_length = 128
 
 def preprocess_function(examples):
-    max_input_length = 128
-    max_target_length = 128
-    inputs = [ex for ex in examples["zh"]]
-    targets = [ex for ex in examples["en"]]
+    inputs = [ex for ex in examples[from_lang]]
+    targets = [ex for ex in examples[to_lang]]
+
     model_inputs = tokenizer(inputs, max_length=max_input_length, truncation=True)
-
-    # Set up the tokenizer for targets
-    with tokenizer.as_target_tokenizer():
+    with tokenizer.as_target_tokenizer(): # with for safety
         labels = tokenizer(targets, max_length=max_target_length, truncation=True)
-
     model_inputs["labels"] = labels["input_ids"]
+
     return model_inputs
 
 def compute_metrics(eval_preds):
@@ -88,8 +89,12 @@ split_datasets = (raw_datasets['train']
 )
 split_datasets["validation"] = split_datasets.pop("test")
 
-# tokenize data
+# load model
 tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, return_tensors="pt")
+model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
+data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
+
+# encode data
 tokenized_datasets = split_datasets.map(
     preprocess_function,
     batched=True,
@@ -97,24 +102,7 @@ tokenized_datasets = split_datasets.map(
 )
 tokenized_datasets.set_format("torch")
 
-# model args
-model = AutoModelForSeq2SeqLM.from_pretrained(model_checkpoint)
-data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
-metric = load_metric("sacrebleu")
-args = Seq2SeqTrainingArguments(
-    output_dir=model_name,
-    evaluation_strategy="no",
-    save_strategy="epoch",
-    learning_rate=5e-5,
-    per_device_train_batch_size=64,
-    per_device_eval_batch_size=64,
-    weight_decay=0.01,
-    save_total_limit=3,
-    num_train_epochs=3,
-    predict_with_generate=True,
-    fp16=False,
-    push_to_hub=True,
-)
+# padding, shuffle, and batch data
 train_dataloader = DataLoader(
     tokenized_datasets["train"],
     shuffle=True,
@@ -126,26 +114,27 @@ eval_dataloader = DataLoader(
     collate_fn=data_collator,
     batch_size=8
 )
-optimizer = AdamW(model.parameters(), lr=2e-5)
 
-# accelerator
-accelerator = Accelerator()
-model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
-    model, optimizer, train_dataloader, eval_dataloader
-)
+# model args
 num_train_epochs = 3
 num_update_steps_per_epoch = len(train_dataloader)
 num_training_steps = num_train_epochs * num_update_steps_per_epoch
-
+optimizer = AdamW(model.parameters(), lr=2e-5)
 lr_scheduler = get_scheduler(
     "linear",
     optimizer=optimizer,
     num_warmup_steps=0,
     num_training_steps=num_training_steps,
 )
+metric = load_metric("sacrebleu")
 
-# Start training
-repo = Repository(output_dir, clone_from=repo_name)
+# accelerator
+accelerator = Accelerator()
+model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
+    model, optimizer, train_dataloader, eval_dataloader
+)
+
+# Start!!
 progress_bar = tqdm(range(num_training_steps))
 for epoch in range(num_train_epochs):
     # Training
