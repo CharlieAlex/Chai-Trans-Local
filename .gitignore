@@ -1,8 +1,7 @@
 /marian-finetuned-kde4-zh-to-en-local
-/rawdata
-/workdata
+/data
+/doc
 **/__pycache__
 **/.DS_Store
 chatgpt.txt
 test*
-config.py

@@ -1,4 +1,4 @@
-from t0_config import Project_path, workdata_path
+from t0_config import *
 import numpy as np
 import os
 from tqdm import tqdm
@@ -16,24 +16,13 @@ from huggingface_hub import Repository, get_full_repo_name
 import warnings
 warnings.filterwarnings("ignore")
 
-# Key
-from_lang = 'zh'
-to_lang = 'en'
-directory = "TMX"
-train_file = "ZH-EN (Charlotte).json"
-train_range = range(5_000, 6_000)
-commit_text = "char_5000_6000"
-
-# Constants
-model_checkpoint = "charliealex123/marian-finetuned-kde4-zh-to-en"
-output_dir = f"{Project_path}/marian-finetuned-kde4-zh-to-en-local"
-model_name = "marian-finetuned-kde4-zh-to-en"
-workdata_path = f"{workdata_path}/{directory}"
-repo_name = get_full_repo_name(model_name)
+# const
+repo_name = get_full_repo_name(model_checkpoint)
 repo = Repository(output_dir, clone_from=repo_name)
 max_input_length = 128
 max_target_length = 128
 
+# func
 def preprocess_function(examples):
     inputs = [ex for ex in examples[from_lang]]
     targets = [ex for ex in examples[to_lang]]
@@ -82,9 +71,9 @@ def postprocess(predictions, labels):
 
 # load data
 os.chdir(workdata_path)
-raw_datasets = load_dataset('json', data_files=train_file)
+raw_datasets = load_dataset('json', data_files=file_name+'.json')
 split_datasets = (raw_datasets['train']
-    .select(train_range)
+    .select(target_range)
     .train_test_split(train_size=0.9, seed=20)
 )
 split_datasets["validation"] = split_datasets.pop("test")
