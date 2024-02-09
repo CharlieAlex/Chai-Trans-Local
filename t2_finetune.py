@@ -1,10 +1,15 @@
 from t0_config import *
-import numpy as np
+
 import os
 from tqdm import tqdm
 from tqdm.auto import tqdm
-from torch.utils.data import DataLoader
+import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
+
 import torch
+from torch.utils.data import DataLoader
+from huggingface_hub import Repository
 from datasets import load_dataset, load_metric
 from transformers import (
     AutoTokenizer, AutoModelForSeq2SeqLM,
@@ -12,24 +17,16 @@ from transformers import (
     get_scheduler
 )
 from accelerate import Accelerator
-from huggingface_hub import Repository, get_full_repo_name
-import warnings
-warnings.filterwarnings("ignore")
 
-# const
-repo_name = get_full_repo_name(model_checkpoint)
-repo = Repository(output_dir, clone_from=repo_name)
-max_input_length = 128
-max_target_length = 128
 
 # func
 def preprocess_function(examples):
     inputs = [ex for ex in examples[from_lang]]
     targets = [ex for ex in examples[to_lang]]
 
-    model_inputs = tokenizer(inputs, max_length=max_input_length, truncation=True)
+    model_inputs = tokenizer(inputs, max_length=128, truncation=True)
     with tokenizer.as_target_tokenizer(): # with for safety
-        labels = tokenizer(targets, max_length=max_target_length, truncation=True)
+        labels = tokenizer(targets, max_length=128, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
 
     return model_inputs
@@ -68,6 +65,9 @@ def postprocess(predictions, labels):
     decoded_labels = [[label.strip()] for label in decoded_labels]
     return decoded_preds, decoded_labels
 
+
+# connect to repo
+repo = Repository(output_dir, clone_from=model_checkpoint)
 
 # load data
 os.chdir(workdata_path)
