@@ -1,16 +1,20 @@
-import re
+import pandas as pd
+from functools import partial
+from tqdm import tqdm, trange
 
-def is_english_start(text):
-    """
-    檢查一個字符串是否符合指定條件：
-    1. 為空
-    2. 英文字開頭
-    3. 跳脫字元後英文字開頭，e.g. \tThis is an apple.
-    """
-    pattern = r'^(\s*|\\[^\s]*)[A-Za-z]'
+def skip_train(text):
+    skip_sentence = [
+        'Technical Field',
+        'Description of Related Art',
+        'SUMMARY',
+        'BRIEF DESCRIPTION OF THE DRAWINGS',
+        'DESCRIPTION OF THE EMBODIMENTS',
+        'WHAT IS CLAIMED IS:',
+        'ABSTRACT',
+    ]
 
     # 如果字符串以英文字母開頭，返回 True
-    if re.match(pattern, text):
+    if text.strip() in skip_sentence:
         return True
 
     # 如果字符串為空，返回 True
@@ -19,25 +23,7 @@ def is_english_start(text):
 
     return False
 
-def split_string_into_chunks(text, max_length=500):
-    """
-    將輸入的字串分成不超過指定長度的片段
-    """
-    chunks = []
-
-    # 將輸入字串按照最大長度分成多個片段
-    while len(text) > max_length:
-        chunk = text[:max_length]
-        chunks.append(chunk)
-        text = text[max_length:]
-
-    # 將最後剩餘的部分添加到片段中
-    if len(text) > 0:
-        chunks.append(text)
-
-    return chunks
-
-def translation_filter(raw_text_list:[str], target_range:range) -> [str]:
+def translation_filter(raw_text_list:list[str], target_range:range) -> list[str]:
     try:
         target_text_list = [raw_text_list[i] for i in target_range]
         print(f'即將翻譯第 {target_range[0]} 句至第 {target_range[-1]} 句')
@@ -48,3 +34,74 @@ def translation_filter(raw_text_list:[str], target_range:range) -> [str]:
     print('從以下開始翻譯:', target_text_list[0])
 
     return target_text_list
+
+def flatten_list(nested_list:list)->list:
+    """
+    Flatten a nested list into a flat list.
+
+    Args:
+    - nested_list: Nested list.
+
+    Returns:
+    - Flattened list.
+    """
+    flattened_list = []
+    for item in nested_list:
+        if isinstance(item, list):
+            flattened_list.extend(flatten_list(item))
+        else:
+            flattened_list.append(item)
+    return flattened_list
+
+def split_func(text_list:list[str], sep:str, max_length:int, cut_half:bool=False)->list[str]:
+    """
+    Split the list of texts based on the specified delimiter and ensure that the length of each resulting substring
+    does not exceed the specified maximum length.
+
+    Args:
+    - text_list: List containing the texts to be split.
+    - sep: Delimiter used for splitting the texts.
+    - max_length: Maximum length of the resulting substrings.
+    - cut_half: Whether to attempt cutting in half when exceeding the maximum length. Default is False.
+
+    Returns:
+    - List of split texts.
+    """
+    text_list = text_list.copy()
+    for index, text in enumerate(text_list):
+        if len(text) > max_length:
+            split_list = text.split(sep)
+            if cut_half:
+                num_sep = int(len(split_list)/2)
+                split_list = [sep.join(split_list[:num_sep])] + [sep.join(split_list[num_sep:])]
+            text_list[index] = [i+sep for i in split_list[:-1]] + [split_list[-1]]
+    return flatten_list(text_list)
+
+def count_characters(strings:str)->int:
+    """
+    Calculate the number of characters in the longest string in a list of strings.
+
+    Args:
+    - strings: List containing strings.
+
+    Returns:
+    - Number of characters in the longest string in the list.
+    """
+    return max([len(s) for s in strings])
+
+def count_max_characters(split_sentence:pd.Series)->int:
+    """
+    Calculate the maximum number of characters in the split sentences in a DataFrame column.
+
+    Args:
+    - split_sentence: DataFrame column containing split sentences.
+
+    Returns:
+    - Maximum number of characters in the split sentences of the DataFrame column.
+    """
+    return max(split_sentence.apply(lambda x: count_characters(x)))
+
+
+split_string_by_dot = partial(split_func, sep='。', max_length=0)
+split_string_by_semicolon = partial(split_func, sep='；', max_length=100)
+split_string_by_comma = partial(split_func, sep='，', max_length=100, cut_half=True)

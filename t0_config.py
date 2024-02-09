@@ -10,7 +10,6 @@ file_name = '[for MT] 132957'
 from_lang = 'zh'
 to_lang = 'en'
 
-target_range = range(0, 30)
-commit_text = "char_5000_6000"
+target_range = range(0, 6100)
+commit_text = "char_6000_6100"
 model_checkpoint = "charliealex123/marian-finetuned-kde4-zh-to-en"
-model_name = "marian-finetuned-kde4-zh-to-en"
